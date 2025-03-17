@@ -29,7 +29,7 @@ app.post("/webhook", async (req, res) => {
         const events = req.body.events;
         for (let event of events) {
             if (event.type === "message" && event.message.type === "text") {
-                await replyMessage(event.replyToken, `${event.message.text}`);
+                await replyMessage(event.replyToken, ` ${event.message.text}`);
             }
         }
 
