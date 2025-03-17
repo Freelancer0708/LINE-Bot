@@ -6,20 +6,27 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
 
-app.use(express.json());
+// JSON パーサーを適用
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } }));
 
 // LINE Webhookエンドポイント
 app.post("/webhook", async (req, res) => {
     try {
-        console.log("🚀 Webhook received:", JSON.stringify(req.body, null, 2));
+        console.log("🚀 Webhook received - Full request:", JSON.stringify(req.body, null, 2));
 
-        // イベントデータを取得
-        const events = req.body.events;
-        if (!events || events.length === 0) {
-            console.error("⚠️ No events received - Bad Request");
-            return res.sendStatus(400);
+        // リクエストデータが空の場合、400エラーを返す
+        if (!req.body || Object.keys(req.body).length === 0) {
+            console.error("❌ Error: Empty request body - Bad Request");
+            return res.status(400).send("Bad Request: Empty body");
         }
 
+        // `events` フィールドが存在するか確認
+        if (!req.body.events) {
+            console.error("❌ Error: Missing 'events' field - Bad Request");
+            return res.status(400).send("Bad Request: Missing 'events' field");
+        }
+
+        const events = req.body.events;
         for (let event of events) {
             if (event.type === "message" && event.message.type === "text") {
                 await replyMessage(event.replyToken, `あなたのメッセージ: ${event.message.text}`);
