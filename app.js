@@ -1,35 +1,31 @@
 const express = require("express");
 const axios = require("axios");
 require("dotenv").config();
+const { getChatGPTReply } = require("./chatgpt"); // ChatGPT APIをインポート
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
 
-// JSON パーサーを適用
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } }));
 
 // LINE Webhookエンドポイント
 app.post("/webhook", async (req, res) => {
     try {
-        console.log("🚀 Webhook received - Full request:", JSON.stringify(req.body, null, 2));
-
-        // リクエストデータが空の場合、400エラーを返す
-        if (!req.body || Object.keys(req.body).length === 0) {
-            console.error("❌ Error: Empty request body - Bad Request");
-            return res.status(400).send("Bad Request: Empty body");
-        }
-
-        // `events` フィールドが存在するか確認
-        if (!req.body.events) {
-            console.error("❌ Error: Missing 'events' field - Bad Request");
-            return res.status(400).send("Bad Request: Missing 'events' field");
-        }
+        console.log("🚀 Webhook received:", JSON.stringify(req.body, null, 2));
 
         const events = req.body.events;
+        if (!events || events.length === 0) {
+            console.error("⚠️ No events received - Bad Request");
+            return res.sendStatus(400);
+        }
+
         for (let event of events) {
             if (event.type === "message" && event.message.type === "text") {
-                await replyMessage(event.replyToken, event.message.text);
+                const userMessage = event.message.text;
+                const chatGPTResponse = await getChatGPTReply(userMessage);
+
+                await replyMessage(event.replyToken, chatGPTResponse);
             }
         }
 
@@ -45,7 +41,7 @@ async function replyMessage(replyToken, text) {
     try {
         console.log(`📤 Sending reply: ${text}`);
 
-        const response = await axios.post(
+        await axios.post(
             "https://api.line.me/v2/bot/message/reply",
             {
                 replyToken,
@@ -59,7 +55,7 @@ async function replyMessage(replyToken, text) {
             }
         );
 
-        console.log("✅ Message sent:", response.data);
+        console.log("✅ Message sent successfully");
     } catch (error) {
         console.error("❌ Error sending message:", error.response?.data || error.message);
     }
