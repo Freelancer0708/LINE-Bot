@@ -13,9 +13,10 @@ app.post("/webhook", async (req, res) => {
     try {
         console.log("🚀 Webhook received:", JSON.stringify(req.body, null, 2));
 
+        // イベントデータを取得
         const events = req.body.events;
         if (!events || events.length === 0) {
-            console.error("⚠️ No events received");
+            console.error("⚠️ No events received - Bad Request");
             return res.sendStatus(400);
         }
 
@@ -37,7 +38,7 @@ async function replyMessage(replyToken, text) {
     try {
         console.log(`📤 Sending reply: ${text}`);
 
-        await axios.post(
+        const response = await axios.post(
             "https://api.line.me/v2/bot/message/reply",
             {
                 replyToken,
@@ -50,6 +51,8 @@ async function replyMessage(replyToken, text) {
                 }
             }
         );
+
+        console.log("✅ Message sent:", response.data);
     } catch (error) {
         console.error("❌ Error sending message:", error.response?.data || error.message);
     }
