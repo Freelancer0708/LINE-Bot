@@ -7,32 +7,8 @@ const PORT = process.env.PORT || 3000;
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+// JSON パーサーを適用
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } }));
-
-// ChatGPT API を呼び出す関数
-async function getChatGPTReply(userMessage) {
-    try {
-        const response = await axios.post(
-            "https://api.openai.com/v1/chat/completions",
-            {
-                model: "gpt-3.5-turbo", // または "gpt-4"
-                messages: [{ role: "user", content: userMessage }],
-                temperature: 0.7
-            },
-            {
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${OPENAI_API_KEY}`
-                }
-            }
-        );
-
-        return response.data.choices[0].message.content.trim();
-    } catch (error) {
-        console.error("❌ Error in ChatGPT API:", error.response?.data || error.message);
-        return "申し訳ありません。現在AIが応答できません。";
-    }
-}
 
 // LINE Webhookエンドポイント
 app.post("/webhook", async (req, res) => {
@@ -54,10 +30,8 @@ app.post("/webhook", async (req, res) => {
         const events = req.body.events;
         for (let event of events) {
             if (event.type === "message" && event.message.type === "text") {
-                const userMessage = event.message.text;
-                const chatGPTResponse = await getChatGPTReply(userMessage); // ChatGPTにメッセージを送信
-
-                await replyMessage(event.replyToken, chatGPTResponse); // ChatGPTの応答をLINEに送信
+                const replyText = await getChatGptResponse(event.message.text);
+                await replyMessage(event.replyToken, replyText);
             }
         }
 
@@ -68,12 +42,36 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
+// ChatGPT API を使って返信メッセージを取得
+async function getChatGptResponse(userMessage) {
+    try {
+        const response = await axios.post(
+            "https://api.openai.com/v1/chat/completions",
+            {
+                model: "gpt-3.5-turbo",
+                messages: [{ role: "user", content: userMessage }],
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${OPENAI_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+
+        return response.data.choices[0].message.content;
+    } catch (error) {
+        console.error("ChatGPT API error:", error);
+        return "エラーが発生しました。";
+    }
+}
+
 // LINEに返信する関数
 async function replyMessage(replyToken, text) {
     try {
         console.log(`📤 Sending reply: ${text}`);
 
-        await axios.post(
+        const response = await axios.post(
             "https://api.line.me/v2/bot/message/reply",
             {
                 replyToken,
@@ -87,7 +85,7 @@ async function replyMessage(replyToken, text) {
             }
         );
 
-        console.log("✅ Message sent successfully");
+        console.log("✅ Message sent:", response.data);
     } catch (error) {
         console.error("❌ Error sending message:", error.response?.data || error.message);
     }
